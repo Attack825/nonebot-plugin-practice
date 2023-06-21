@@ -8,12 +8,12 @@ from nonebot import get_driver  # 导入 driver
 plugin_config = Config().parse_obj(get_driver().config)  # 获取插件配置
 
 
-async def is_enable() -> bool:
+def is_enable() -> bool:
     return plugin_config.weather_plugin_enabled
 
 
 # 直接使用 nonebot.params 模块中定义的参数类型来声明依赖。
-weather = on_command("天气", rule=is_enable(), aliases={"weather", "查天气"}, priority=plugin_config.weather_plugin_enabled, block=True)
+weather = on_command("天气", rule=to_me(), aliases={"weather", "查天气"}, priority=plugin_config.weather_plugin_enabled, block=True)
 
 
 @weather.handle()
