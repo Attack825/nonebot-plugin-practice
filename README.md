@@ -1,2 +1,2 @@
 # nonebot-plugin-practice
-nonebot官网的最佳实践练习
+插件练习编写
