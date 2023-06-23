@@ -26,29 +26,33 @@ async def handle_function(args: Message = CommandArg()):
     # 提取参数为纯文本为地名，并判断是否有效。
     if location := args.extract_plain_text():
         logger.info(f"查询地名为{location}")
-        x: tuple = await get_weather(location)
+        w_date = Weather(location, WEATHER_API_KEY)
+        x = await w_date.get_weather()
         await weather.finish(f"今天{location}天气是{x[0]}，最高温度{x[1]}℃，最低温度{x[2]}℃")
     else:
         await weather.finish("你要查询的地名是？")
 
 
-async def get_location_id(location: str):
-    params = {'location': location, 'key': WEATHER_API_KEY, "range": "cn"}
-    get_location_url = "https://geoapi.qweather.com/v2/city/lookup"
-    async with AsyncClient() as client:
-        resp = await client.get(url=get_location_url, params=params)
-    location_params = resp.json()['location'][0]['id']
-    logger.info(f"查询地名为{location}的id为{location_params}")
-    return location_params
+class Weather:
+    def __init__(self, location: str, api_key: str):
+        self.location = location
+        self.api_key = api_key
+        self.location_id = ""
+        self.location_url = "https://geoapi.qweather.com/v2/city/lookup"
+        self.weather_url = "https://devapi.qweather.com/v7/weather/3d"
 
+    async def get_location_id(self):
+        location_params = {'location': self.location, 'key': self.api_key, "range": "cn"}
+        async with AsyncClient() as client:
+            resp = await client.get(url=self.location_url, params=location_params)
+        self.location_id = resp.json()['location'][0]['id']
 
-async def get_weather(location: str):
-    location_params = await get_location_id(location)
-    weather_params = {'location': location_params, 'key': WEATHER_API_KEY}
-    get_weather_url = "https://devapi.qweather.com/v7/weather/3d"
-    async with AsyncClient() as client:
-        pokemon = await client.get(url=get_weather_url, params=weather_params)
-    return pokemon.json()['daily'][0]['textDay'], pokemon.json()['daily'][0]['tempMax'], pokemon.json()['daily'][0][
-        'tempMin']
+    async def get_weather(self) -> tuple:
+        await self.get_location_id()
+        weather_params = {'location': self.location_id, 'key': self.api_key}
+        async with AsyncClient() as client:
+            resp = await client.get(url=self.weather_url, params=weather_params)
+        return resp.json()['daily'][0]['textDay'], resp.json()['daily'][0]['tempMax'], resp.json()['daily'][0][
+            'tempMin']
 
 
