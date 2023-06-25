@@ -1,9 +1,22 @@
 from nonebot import on_command
 from nonebot.adapters import Message
 from nonebot.params import CommandArg
-from .config import WEATHER_PLUGIN_ENABLED, WEATHER_COMMAND_PRIORITY, WEATHER_API_KEY
+from nonebot.matcher import Matcher
+from .config import WEATHER_PLUGIN_ENABLED, WEATHER_COMMAND_PRIORITY, WEATHER_API_KEY, Config
 from nonebot import logger
 from httpx import AsyncClient
+from nonebot.plugin import PluginMetadata
+
+__plugin_meta__ = PluginMetadata(
+    name="nonebot-plugin-practice",
+    description="和风天气查询插件",
+    usage="天气地名",
+    type="application",
+    homepage="https://github.com/attack825/nonebot-plugin-practice",
+    config=Config,
+    extra={},
+    supported_adapters={"~onebot.v11"},
+)
 
 
 # 查看配置是否启用
@@ -20,22 +33,26 @@ weather = on_command("天气", rule=is_enable, aliases={"weather", "查天气"},
 
 
 @weather.handle()
-async def handle_function(args: Message = CommandArg()):
+async def handle_function(matcher: Matcher, args: Message = CommandArg()):
     # 使用了 args 作为注入参数名，注入的内容为 CommandArg()，也就是消息命令后跟随的内容。
     # 提取参数为纯文本为地名，并判断是否有效。
     if location := args.extract_plain_text():
         w_date = Weather(location, WEATHER_API_KEY)
-        x = await w_date.get_weather()
-        await weather.finish(f"今天{location}天气是{x[0]}，最高温度{x[1]}℃，最低温度{x[2]}℃")
+        try:
+            x = await w_date.get_weather()
+            await weather.finish(f"今天{location}天气是{x[0]}，最高温度{x[1]}℃，最低温度{x[2]}℃")
+        except CityNotFoundError:
+            matcher.block = False
+            await weather.finish()
     else:
         await weather.finish("你要查询的地名是？")
 
 
-def CityNotFoundError():
+class CityNotFoundError(BaseException):
     pass
 
 
-def APIError(Exception):
+class APIError(BaseException):
     pass
 
 
@@ -75,3 +92,5 @@ class Weather:
         else:
             return resp['daily'][0]['textDay'], resp['daily'][0]['tempMax'], resp['daily'][0][
                 'tempMin']
+
+# todo: 权限控制, 单元测试，docker，持续集成，定时任务框架，插件元信息
