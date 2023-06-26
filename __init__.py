@@ -1,8 +1,11 @@
 from nonebot import on_command
 from nonebot.adapters import Message
-from nonebot.params import CommandArg
+from nonebot.params import CommandArg, Command
 from nonebot.matcher import Matcher
-from .config import WEATHER_PLUGIN_ENABLED, WEATHER_COMMAND_PRIORITY, WEATHER_API_KEY, Config
+from nonebot.rule import to_me
+from typing import Tuple
+from nonebot.permission import SUPERUSER
+from .config import Config, plugin_config
 from nonebot import logger
 from httpx import AsyncClient
 from nonebot.plugin import PluginMetadata
@@ -21,14 +24,32 @@ __plugin_meta__ = PluginMetadata(
 
 # 查看配置是否启用
 async def is_enable() -> bool:
-    if WEATHER_PLUGIN_ENABLED is False:
-        logger.info("天气插件未启用")
-    return WEATHER_PLUGIN_ENABLED
+    if plugin_config.weather_plugin_enabled is False:
+        logger.info("天气插件未启用,请在配置文件中启用")
+    return plugin_config.weather_plugin_enabled
+
+
+manage = on_command(
+    ("天气", "启用"),
+    rule=to_me(),
+    aliases={("天气", "禁用")},
+    permission=SUPERUSER,
+)
+
+
+@manage.handle()
+async def control(cmd: Tuple[str, str] = Command()):
+    _, action = cmd
+    if action == "启用":
+        plugin_config.weather_plugin_enabled = True
+    elif action == "禁用":
+        plugin_config.weather_plugin_enabled = False
+    await manage.finish(f"天气插件已{action}")
 
 
 # 直接使用 nonebot.params 模块中定义的参数类型来声明依赖。
 weather = on_command("天气", rule=is_enable, aliases={"weather", "查天气"},
-                     priority=WEATHER_COMMAND_PRIORITY,
+                     priority=plugin_config.weather_command_priority,
                      block=True)
 
 
@@ -37,7 +58,7 @@ async def handle_function(matcher: Matcher, args: Message = CommandArg()):
     # 使用了 args 作为注入参数名，注入的内容为 CommandArg()，也就是消息命令后跟随的内容。
     # 提取参数为纯文本为地名，并判断是否有效。
     if location := args.extract_plain_text():
-        w_date = Weather(location, WEATHER_API_KEY)
+        w_date = Weather(location, plugin_config.weather_plugin_enabled)
         try:
             x = await w_date.get_weather()
             await weather.finish(f"今天{location}天气是{x[0]}，最高温度{x[1]}℃，最低温度{x[2]}℃")
@@ -93,4 +114,4 @@ class Weather:
             return resp['daily'][0]['textDay'], resp['daily'][0]['tempMax'], resp['daily'][0][
                 'tempMin']
 
-# todo: 权限控制, 单元测试，docker，持续集成，定时任务框架，插件元信息
+# todo: 权限控制，docker，持续集成，定时任务框架
